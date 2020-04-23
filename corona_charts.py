@@ -74,7 +74,7 @@ def wma_slice(series, idxs):
 
 
 def outfile(prefix, mode):
-    return "{}.{}.png".format(prefix, mode)
+    return "{}.{}.svg".format(prefix, mode)
 
 
 def main(args):
