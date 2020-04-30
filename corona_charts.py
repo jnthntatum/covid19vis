@@ -76,12 +76,14 @@ def stagger_labels(labels, staggering=3):
     return [l if (i % staggering == 0) else "" for i, l in enumerate(labels)]
 
 
-def draw(fname, dates, dpd, wma):
+def draw(fname, dates, dpd, wma, title=""):
     labels = stagger_labels(dates)
     fig, ax = plt.subplots(figsize=(6,4))
-    ax.bar(dates, dpd, color='orange')
-    ax.plot(dates[:-3], wma[3:])
+    dc = ax.bar(dates, dpd, color='orange')
+    avg, = ax.plot(dates[:-3], wma[3:])
     ax.set_xticklabels(labels, rotation="vertical", fontsize=6)
+    ax.legend((dc, avg), ("(est.) daily count", "7 day average"))
+    ax.set_title(title)
     fig.savefig(fname, dpi=600)
 
 def wma_slice(series, idxs):
@@ -106,6 +108,15 @@ def is_wcp(x):
     return x in [state for state, abbrv in WEST_COAST_PACT]
 
 
+def title(mode, subtitle):
+    if mode == "confirmed":
+        t = "Confirmed Cases"
+    else:
+        t = "Deaths"
+
+    return "{} -- {}".format(t, subtitle)
+
+
 def load_and_draw(mode, slices):
     filename = 'time_series_covid19_{}_US.csv'.format(mode)
     raw = read_from_master(filename)
@@ -116,7 +127,7 @@ def load_and_draw(mode, slices):
         slice_idxs = [i for i, row in enumerate(data) if filter_pred(row[col[filter_field]])]
         slice_deltas, slice_wma = wma_slice(ts, slice_idxs)
 
-        draw(outfile(prefix, mode), dates, slice_deltas, slice_wma)
+        draw(outfile(prefix, mode), dates, slice_deltas, slice_wma, title=title(mode, prefix))
 
     draw_slice()
     draw_slice(filter_field="Province_State", filter_pred=is_wcp, prefix="west_coast_pact")
