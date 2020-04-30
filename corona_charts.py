@@ -4,6 +4,25 @@ import matplotlib as m
 import matplotlib.pyplot as plt
 from typing import Tuple, List, Dict, Sequence
 from argparse import ArgumentParser
+import sys
+
+BATCH = [
+    ("Washington", "wa"),
+    ("New York", "ny"),
+    ("Colorado", "co"),
+    ("California", "ca"),
+    ("New Jersey", "nj"),
+    ("Oregon", "or"),
+    ("Nevada", "nv")
+]
+
+WEST_COAST_PACT = [
+    ("Washington", "wa"),
+    ("Colorado", "co"),
+    ("California", "ca"),
+    ("Oregon", "or"),
+    ("Nevada", "nv")
+]
 
 
 def read_from_master(fname):
@@ -54,7 +73,7 @@ def compute_wma(series, window=3):
 
 
 def stagger_labels(labels, staggering=3):
-    return [l if (i % 3 == 0) else "" for i, l in enumerate(labels)]
+    return [l if (i % staggering == 0) else "" for i, l in enumerate(labels)]
 
 
 def draw(fname, dates, dpd, wma):
@@ -77,34 +96,52 @@ def outfile(prefix, mode):
     return "{}.{}.svg".format(prefix, mode)
 
 
-def main(args):
-    mode = args.mode
-    filter_field = args.filter
-    filter_value = args.filter_value
-    slice_prefix = args.slice_prefix
+def eq(arg):
+    def pred(x):
+        return x == arg
+    return pred
+
+
+def is_wcp(x):
+    return x in [state for state, abbrv in WEST_COAST_PACT]
+
+
+def load_and_draw(mode, slices):
     filename = 'time_series_covid19_{}_US.csv'.format(mode)
     raw = read_from_master(filename)
     hdrs, data, ts, col = parse(raw)
     dates = hdrs[12:]
 
-    us_idxs = [i for i, row in enumerate(data) if row[col['iso3']] == "USA"]
-    us_deltas, us_wma = wma_slice(ts, us_idxs)
+    def draw_slice(filter_field='iso3', filter_pred=eq('USA'), prefix='us'):
+        slice_idxs = [i for i, row in enumerate(data) if filter_pred(row[col[filter_field]])]
+        slice_deltas, slice_wma = wma_slice(ts, slice_idxs)
 
-    draw(outfile('us', mode), dates, us_deltas, us_wma)
+        draw(outfile(prefix, mode), dates, slice_deltas, slice_wma)
 
-    slice_idxs = [i for i, row in enumerate(data) if row[col[filter_field]] == filter_value]
-    slice_deltas, slice_wma = wma_slice(ts, slice_idxs)
+    draw_slice()
+    draw_slice(filter_field="Province_State", filter_pred=is_wcp, prefix="west_coast_pact")
+    for state, state_abrv in slices:
+        draw_slice(filter_field="Province_State", filter_pred=eq(state), prefix=state_abrv)
 
-    draw(outfile(slice_prefix, mode), dates, slice_deltas, slice_wma)
+def main(args):
+    mode = args.mode
+    if mode == "both":
+        modes = ["confirmed", "deaths"]
+    else:
+        modes = [mode] 
+    for mode in modes:
+        load_and_draw(mode, BATCH)
         
 
-def parse_args():
-    import sys
-    parser = ArgumentParser(sys.argv[0])
-    parser.add_argument("mode", choices=['deaths', 'confirmed'])
+def one_shot_args(parser):
+    # TODO add subcommand for this
     parser.add_argument("-f", dest="filter", choices=["Province_State"], default="Province_State")
     parser.add_argument("-v", dest="filter_value", help="filter value", default="Washington")
     parser.add_argument("-n", dest="slice_prefix", help="filename prefix", default="wa")
+
+def parse_args():
+    parser = ArgumentParser(sys.argv[0])
+    parser.add_argument("mode", choices=['deaths', 'confirmed', 'both'])
     return parser.parse_args()
 
 
